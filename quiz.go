@@ -1,86 +1,65 @@
 package main
 
 import (
-	"bufio"
-	"errors"
+	"encoding/csv"
+	"flag"
 	"fmt"
-	"log"
 	"os"
 	"strings"
 )
 
-var title = "Exercise #1: Quiz Game"
-var help = "Load file name with -f. See README for more information."
-var errCLI = "You must enter arguments! Type -help for help."
+type problem struct {
+	q string
+	a string
+}
 
 func main() {
-	args := os.Args[1:]
-	if len(args) == 0 {
-		fmt.Println(errCLI)
-	} else if len(args) == 1 && args[0] == "-help" {
-		fmt.Println(title)
-		fmt.Println(help)
-	} else if len(args) == 2 && args[0] == "-f" {
-		dat := readfile(args[1])
-		sols, ans := quiz(dat)
+	csvFilename := flag.String("csv", "problems.csv", "a csv file in the format of 'question,answer'")
+	flag.Parse()
 
-		output, err := checkSol(sols, ans)
-		if err != nil {
-			log.Fatal(err)
-		} else {
-			fmt.Println(output)
-		}
-	} else {
-		fmt.Println(errCLI)
+	lines, err := readFile(csvFilename)
+	if err != nil {
+		fmt.Printf("Failed to parse the provided SCV file.\n")
+		os.Exit(1)
 	}
+
+	problems := parseLine(lines)
+	fmt.Println(quiz(problems))
+
 }
 
-func readfile(fileName string) []string {
-	file, err := os.Open(fileName + ".csv")
+func readFile(csvFilename *string) ([][]string, error) {
+	file, err := os.Open(*csvFilename)
 	if err != nil {
-		panic(err)
+		fmt.Printf("failed to open CSV file: %s\n", *csvFilename)
+		os.Exit(1)
 	}
 	defer file.Close()
-
-	scanner := bufio.NewScanner(file)
-	var output []string
-
-	for scanner.Scan() {
-		output = append(output, scanner.Text())
-	}
-
-	return output
+	r := csv.NewReader(file)
+	return r.ReadAll()
 }
 
-func quiz(dat []string) ([]string, []string) {
-	var input, solutions []string
-	for i := range dat {
-		question := strings.Split(dat[i], ",")[0]
-		ans := strings.Split(dat[i], ",")[1]
-		fmt.Printf("%v:\t", question)
-		input = append(input, readInput())
-		solutions = append(solutions, ans)
+func parseLine(lines [][]string) []problem {
+	ret := make([]problem, len(lines))
+	for i, line := range lines {
+		ret[i] = problem{
+			q: line[0],
+			a: strings.TrimSpace(line[1]),
+		}
 	}
-
-	return solutions, input
+	return ret
 }
 
-func readInput() string {
-	reader := bufio.NewReader(os.Stdin)
-	text, _ := reader.ReadString('\n')
-	return strings.TrimSpace(text)
-}
-
-func checkSol(sol, ans []string) (string, error) {
-	if len(sol) != len(ans) {
-		return "", errors.New("solution length and answer input length do not match")
-	}
-	var tally int
-	for i := range sol {
-		if sol[i] == ans[i] {
+func quiz(problems []problem) string {
+	tally := 0
+	for i, p := range problems {
+		fmt.Printf("Problem #%v: %v = ", i+1, p.q)
+		var answer string
+		fmt.Scanf("%s\n", &answer)
+		if answer == p.a {
 			tally++
 		}
 	}
-	output := fmt.Sprintf("\nYou scored %v out of %v\n", tally, len(sol))
-	return output, nil
+	return fmt.Sprintf("\nYou scored %v out of %v\n", tally, len(problems))
+
 }
